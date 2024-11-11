@@ -1,52 +1,63 @@
 const express = require('express');
-const { downloadFile } = require('./fileDownloader');
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.get('/download', async (req, res) => {
-    const musicUrl = req.query.url;
-
-    if (!musicUrl) {
-        return res.status(400).send('Music URL is required');
-    }
-
-    await downloadFile(musicUrl, res);
-});
-
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-});
-
-// fileDownloader.js
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const app = express();
+const PORT = 3000;
 
-const downloadFile = async (musicUrl, res) => {
-    try {
-        // Fetch the download link from the main API
-        const apiUrl = `https://ccprojectapis.ddns.net/api/music?url=${encodeURIComponent(musicUrl)}`;
-        const { data } = await axios.get(apiUrl);
-        const downloadLink = data.downloadUrl; // Adjust this based on the actual response structure
+// Endpoint to download audio from main API and serve to user
+app.get('/sing', async (req, res) => {
+  const { url } = req.query;
 
-        if (!downloadLink) {
-            return res.status(404).send('Download link not found');
+  if (!url) {
+    return res.status(400).send('URL is required');
+  }
+
+  try {
+    // Fetch data from main API
+    const apiUrl = `https://ccprojectapis.ddns.net/api/music?url=${encodeURIComponent(url)}`;
+    const response = await axios.get(apiUrl);
+    
+    // Extract download link from response
+    const downloadUrl = response.data.data.link;
+    const fileName = response.data.data.title + '.mp3';
+
+    // Download the audio file to server
+    const writer = fs.createWriteStream(path.join(__dirname, fileName));
+    const downloadResponse = await axios({
+      url: downloadUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    // Pipe the download stream to a file
+    downloadResponse.data.pipe(writer);
+
+    writer.on('finish', () => {
+      // Serve the file to the user
+      res.download(path.join(__dirname, fileName), fileName, (err) => {
+        if (err) {
+          console.error('Error while sending file:', err);
+          res.status(500).send('Failed to download file');
         }
 
-        // Setup response headers to prompt download
-        res.setHeader('Content-Disposition', `attachment; filename="downloaded_music.mp3"`); // Change extension if needed
-        res.setHeader('Content-Type', 'audio/mpeg'); // Adjust based on the file type
+        // Delete the file after download
+        fs.unlinkSync(path.join(__dirname, fileName));
+      });
+    });
 
-        // Stream the file to the user
-        const downloadResponse = await axios({
-            url: downloadLink,
-            method: 'GET',
-            responseType: 'stream'
-        });
+    writer.on('error', (err) => {
+      console.error('Error writing file:', err);
+      res.status(500).send('Error downloading the file');
+    });
 
-        downloadResponse.data.pipe(res);
-    } catch (error) {
-        console.error('Error downloading file:', error.message);
-        res.status(500).send('Error processing the request');
-    }
-};
+  } catch (error) {
+    console.error('Error fetching download URL:', error);
+    res.status(500).send('Failed to get download link');
+  }
+});
 
-module.exports = { downloadFile };
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
