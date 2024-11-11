@@ -14,17 +14,20 @@ app.get('/sing', async (req, res) => {
         const fileLink = response.data.data.link;
 
         if (fileLink) {
-            res.setHeader('Content-Disposition', 'attachment; filename="song.mp3"');
-            res.setHeader('Content-Type', 'audio/mpeg');
-
             https.get(fileLink, (fileResponse) => {
+                res.setHeader('Content-Disposition', `attachment; filename="song.mp3"`);
+                res.setHeader('Content-Type', 'audio/mpeg');
                 fileResponse.pipe(res);
-            }).on('error', () => res.status(500).json({ error: "File streaming failed" }));
+            }).on('error', (err) => {
+                console.error('Streaming error:', err);
+                res.status(500).json({ error: "Failed to stream the file" });
+            });
         } else {
-            res.status(404).json({ error: "File not found" });
+            res.status(404).json({ error: "File link not found" });
         }
     } catch (error) {
-        res.status(500).json({ error: "Failed to process request" });
+        console.error('API request error:', error);
+        res.status(500).json({ error: "Failed to process the request" });
     }
 });
 
