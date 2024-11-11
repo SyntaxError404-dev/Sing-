@@ -1,0 +1,18 @@
+{
+  "name": "music-downloader",
+  "version": "1.0.0",
+  "description": "An advanced Express server to download MP3 files directly from a YouTube link",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.4.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "author": "NZ R",
+  "license": "ISC"
+}
