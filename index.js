@@ -12,29 +12,18 @@ app.get('/sing', async (req, res) => {
             return res.status(400).json({ error: 'URL parameter is required' });
         }
 
-        // First, fetch data from the main API
+        // Fetch data from the main API
         const mainApiResponse = await axios.get(`https://ccprojectapis.ddns.net/api/music?url=${youtubeUrl}`);
         
-        if (mainApiResponse.data.status !== 'ok') {
-            return res.status(400).json({ error: 'Failed to process video' });
-        }
+        // Modify the response with new developer name
+        const modifiedResponse = {
+            Developer: "NZ R",
+            Tools: mainApiResponse.data.Tools,
+            data: mainApiResponse.data.data
+        };
 
-        // Get the download link and title from the response
-        const { link, title } = mainApiResponse.data.data;
-
-        // Fetch the audio file
-        const audioResponse = await axios({
-            method: 'get',
-            url: link,
-            responseType: 'stream'
-        });
-
-        // Set headers for file download
-        res.setHeader('Content-Type', 'audio/mpeg');
-        res.setHeader('Content-Disposition', `attachment; filename="${title}.mp3"`);
-
-        // Pipe the audio stream to response
-        audioResponse.data.pipe(res);
+        // Send the modified JSON response
+        res.json(modifiedResponse);
 
     } catch (error) {
         console.error('Error:', error.message);
