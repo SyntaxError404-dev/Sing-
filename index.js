@@ -1,43 +1,60 @@
 const express = require('express');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
 const app = express();
-const port = 3000;
+const PORT = 3000;
 
 app.get('/sing', async (req, res) => {
-    try {
-        const youtubeUrl = req.query.url;
-        
-        if (!youtubeUrl) {
-            return res.status(400).json({ error: 'URL parameter is required' });
+  const videoUrl = req.query.url;
+  
+  if (!videoUrl) {
+    return res.status(400).send('URL parameter is required');
+  }
+
+  try {
+    // Fetch data from the API
+    const apiResponse = await axios.get(`https://ccprojectapis.ddns.net/api/music?url=${videoUrl}`);
+    const songData = apiResponse.data.data;
+
+    // Download the song
+    const songResponse = await axios({
+      url: songData.link,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    const filePath = path.join(__dirname, `${songData.title}.mp3`);
+
+    // Pipe the download stream to a file
+    const writer = fs.createWriteStream(filePath);
+    songResponse.data.pipe(writer);
+
+    writer.on('finish', () => {
+      res.download(filePath, `${songData.title}.mp3`, (err) => {
+        if (err) {
+          console.error(err);
+          res.status(500).send('Error downloading the file');
         }
 
-        const apiUrl = `https://ccprojectapis.ddns.net/api/music?url=${youtubeUrl}`;
-        const response = await axios.get(apiUrl);
+        // Clean up the file after download
+        fs.unlink(filePath, (err) => {
+          if (err) console.error('Failed to delete file:', err);
+        });
+      });
+    });
 
-        if (response.data.data.status === 'ok') {
-            const songData = response.data.data;
-            const songUrl = songData.link;
-            const songTitle = songData.title;
+    writer.on('error', () => {
+      res.status(500).send('Error writing the file');
+    });
 
-            const songResponse = await axios({
-                method: 'get',
-                url: songUrl,
-                responseType: 'stream'
-            });
-
-            res.setHeader('Content-Type', 'audio/mpeg');
-            res.setHeader('Content-Disposition', `attachment; filename="${songTitle}.mp3"`);
-
-            songResponse.data.pipe(res);
-        } else {
-            res.status(400).json({ error: 'Failed to fetch song data' });
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+  } catch (error) {
+    console.error('Error fetching the song:', error);
+    res.status(500).send('Error processing your request');
+  }
 });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
